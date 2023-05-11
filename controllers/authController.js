@@ -48,11 +48,12 @@ const createAndSendToken = (user, statusCode, req, res) => {
     };
     res.cookie('jwt', accessToken, cookieOptions);
     res.status(statusCode).json({
+        success: true,
         status: 'success',
         token: accessToken,
-        // data: {
-        //   user,
-        // },
+        data: {
+            user,
+        },
     });
 };
 
@@ -61,9 +62,7 @@ exports.login = catchAsync(async (req, res, next) => {
     if (!email || !password)
         return next(new AppError('PLease provide email and password', 400));
     // If user exist and password is correct
-    const user = await User.findOne((user) => user.email === email).select(
-        '+password'
-    );
+    const user = await User.findOne({ email: email }).select('+password');
     if (!user || !(await user.correctPassword(password, user.password)))
         return next(new AppError('Incorrect email or password', 401));
     // Send token to client if things are okay
@@ -99,7 +98,10 @@ exports.protect = catchAsync(async (req, res, next) => {
         );
     }
     //Verification token
-    const decoded = await promisify(jwt.verify)(token, process.env.ACCESS_TOKEN_SECRET);
+    const decoded = await promisify(jwt.verify)(
+        token,
+        process.env.ACCESS_TOKEN_SECRET
+    );
     //Check if user still exists
     const currentUser = await User.findById(decoded.id);
     if (!currentUser) {

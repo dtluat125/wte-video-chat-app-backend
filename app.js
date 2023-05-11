@@ -29,6 +29,7 @@ app.options('*', cors());
 app.use(
     helmet({
         crossOriginEmbedderPolicy: false,
+        crossOriginResourcePolicy: false,
     })
 );
 
@@ -74,11 +75,11 @@ if (process.env.NODE_ENV === 'development') {
 }
 // Limit request from the same api
 const limiter = rateLimit({
-    max: 100,
+    max: 1000,
     windowMs: 60 * 60 * 1000,
     message: 'Too many requests from this IP, please try again in an hour',
 });
-app.use('/api', limiter);
+// app.use('/api', limiter);
 // Body parser, reading data from body into req.body
 app.use(express.json({ limit: '10kb' }));
 
