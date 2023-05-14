@@ -10,6 +10,7 @@ const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const cors = require('cors');
 const userRouter = require('./routes/userRoutes');
+const chatRouter = require('./routes/chatRoutes');
 
 const app = express();
 
@@ -115,6 +116,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/v1/users', userRouter);
+app.use('/api/v1/chat', chatRouter);
 
 app.all('*', (req, res, next) => {
     // err.statusCode = 404;
