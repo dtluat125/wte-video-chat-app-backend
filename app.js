@@ -11,6 +11,7 @@ const compression = require('compression');
 const cors = require('cors');
 const userRouter = require('./routes/userRoutes');
 const chatRouter = require('./routes/chatRoutes');
+const messageRouter = require('./routes/messageRoutes');
 
 const app = express();
 
@@ -117,6 +118,7 @@ app.use((req, res, next) => {
 
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/chat', chatRouter);
+app.use('/api/v1/message', messageRouter);
 
 app.all('*', (req, res, next) => {
     // err.statusCode = 404;
