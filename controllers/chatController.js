@@ -84,16 +84,16 @@ const fetchChats = asyncHandler(async (req, res) => {
 
 const createGroupChat = asyncHandler(async (req, res) => {
     if (!req.body.users || !req.body.name) {
-        return req.status(400).send({ message: 'Please fill all the fields' });
+        return res.status(400).send({ message: 'Please fill all the fields' });
     }
-
-    var users = JSON.parse(req.body.users);
+    const users = req.body.users;
     if (users.length < 2) {
-        return req.status(400).send({
+        return res.status(400).send({
             message: 'More than 2 users are required to form a group chat',
         });
     }
-    users.push(req.user);
+    if (!users.find((user) => user === req.user._id.toString()))
+        users.push(req.user._id);
 
     try {
         const groupChat = await Chat.create({
@@ -107,7 +107,7 @@ const createGroupChat = asyncHandler(async (req, res) => {
             .populate('users', '-password')
             .populate('groupAdmin', '-password');
 
-        res.status(200).send(fullGroupChat);
+        res.status(200).send({ data: fullGroupChat, status: 'success' });
     } catch (error) {
         throw new AppError(error.message, 400);
     }
@@ -130,19 +130,21 @@ const renameGroup = asyncHandler(async (req, res) => {
     if (!updatedChat) {
         throw new AppError('Chat not found', 404);
     } else {
-        res.json(updatedChat);
+        res.status(200).json({ status: 'success', data: updatedChat });
     }
 });
 
 const addToGroup = catchAsync(async (req, res, next) => {
-    const { chatId, userId } = req.body;
+    const { chatId, userIds } = req.body;
     const chat = await Chat.findById(chatId).populate('users', '_id');
-    const user = chat.users.find((user) => user._id.toString() === userId);
+    const user = chat.users.find((user) =>
+        userIds.find((newUser) => user._id.toString() === newUser)
+    );
     if (user) return next(new AppError('User already in room', 400));
     const added = await Chat.findByIdAndUpdate(
         chatId,
         {
-            $push: { users: userId },
+            $push: { users: { $each: userIds } },
         },
         {
             new: true,
@@ -154,7 +156,7 @@ const addToGroup = catchAsync(async (req, res, next) => {
     if (!added) {
         throw new AppError('Chat not found', 404);
     } else {
-        res.json(added);
+        res.status(200).json({ status: 'success', data: added });
     }
 });
 
@@ -175,7 +177,7 @@ const removeFromGroup = asyncHandler(async (req, res) => {
     if (!removed) {
         throw new AppError('Chat not found', 404);
     } else {
-        res.json(removed);
+        res.status(201).json({ status: 'success', data: removed });
     }
 });
 
