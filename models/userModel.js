@@ -3,7 +3,31 @@ const validator = require('validator');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
-const userSchema = new mongoose.Schema({
+const Schema = mongoose.Schema;
+
+const friendRequestSchema = new Schema({
+    requester: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    recipient: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    status: {
+        type: Number,
+        required: true,
+        default: 0 // 0= not requested, 1 = requested, 2 = accepted, 3 = rejected
+    },
+    time: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+const userSchema = new Schema({
     name: {
         type: String,
         required: [true, 'Please tell us your name'],
@@ -19,7 +43,6 @@ const userSchema = new mongoose.Schema({
         unique: true,
         lowercase: true,
     },
-
     password: {
         type: String,
         required: [true, 'An user should have a password'],
@@ -29,10 +52,8 @@ const userSchema = new mongoose.Schema({
     passwordConfirm: {
         type: String,
         required: true,
-        // This can only on CREATE and SAVE (no update)
         validate: {
             validator: function (val) {
-                // this only points to current doc on NEW document creation
                 return val === this.password;
             },
             message: 'Password and confirm password must be the same',
@@ -50,57 +71,99 @@ const userSchema = new mongoose.Schema({
         default: true,
         select: false,
     },
+    friends: [{
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+    }]
 });
 
 userSchema.pre('save', async function (next) {
-    // Only run this function if password is modified
     if (!this.isModified('password')) return next();
-    //   Hash the password
     this.password = await bcrypt.hash(this.password, 12);
-    //   Delete confirm field
     this.passwordConfirm = undefined;
     next();
 });
+
 userSchema.pre('save', function (next) {
-    if (!this.isModified('password' || this.isNew)) return next();
+    if (!this.isModified('password') || this.isNew) return next();
     this.passwordChangedAt = Date.now() - 1000;
     next();
 });
 
-// userSchema.pre(/^find/, function (next) {
-//     //this points to the current query
-//     this.find();
-//     next();
-// });
-
-userSchema.methods.correctPassword = async function (
-    candidatePassword,
-    userPassword
-) {
+userSchema.methods.correctPassword = async function (candidatePassword, userPassword) {
     return bcrypt.compare(candidatePassword, userPassword);
 };
 
 userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
     if (this.passwordChangedAt) {
-        const changedTimestamp = parseInt(
-            this.passwordChangedAt.getTime() / 1000,
-            10
-        );
+        const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
         return JWTTimestamp < changedTimestamp;
     }
-
     return false;
 };
 
 userSchema.methods.createPasswordResetToken = function () {
     const resetToken = crypto.randomBytes(32).toString('hex');
-    this.passwordResetToken = crypto
-        .createHash('sha256')
-        .update(resetToken)
-        .digest('hex');
+    this.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
     return resetToken;
 };
+
+const FriendRequest = mongoose.model('FriendRequest', friendRequestSchema);
 const User = mongoose.model('User', userSchema);
 
-module.exports = User;
+const sendFriendRequest = async (requesterId, recipientId) => {
+    try {
+        const friendRequest = await FriendRequest.create({
+            requester: requesterId,
+            recipient: recipientId,
+            status: 1, // 1 represents requested status
+        });
+        // Handle sending notifications or any other necessary actions
+        return friendRequest;
+    } catch (error) {
+        // Handle error
+        console.error(error);
+    }
+};
+
+
+const acceptFriendRequest = async (requestId) => {
+    try {
+        const friendRequest = await FriendRequest.findByIdAndUpdate(
+            requestId,
+            { status: 2, time: Date.now() }, // 2 represents accepted status
+            { new: true }
+        );
+        // Add users to each other's friend list
+        await User.findByIdAndUpdate(friendRequest.requester, {
+            $addToSet: { friends: friendRequest.recipient },
+        });
+        await User.findByIdAndUpdate(friendRequest.recipient, {
+            $addToSet: { friends: friendRequest.requester },
+        });
+        // Handle sending notifications or any other necessary actions
+        return friendRequest;
+    } catch (error) {
+        // Handle error
+        console.error(error);
+    }
+};
+
+const rejectFriendRequest = async (requestId) => {
+    try {
+        const friendRequest = await FriendRequest.findByIdAndUpdate(
+            requestId,
+            { status: 3, time: Date.now() }, // 3 represents rejected status
+            { new: true }
+        );
+        // Handle sending notifications or any other necessary actions
+        return friendRequest;
+    } catch (error) {
+        // Handle error
+        console.error(error);
+    }
+};
+
+
+module.exports = { User, FriendRequest, sendFriendRequest, acceptFriendRequest, rejectFriendRequest };

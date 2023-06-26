@@ -10,6 +10,16 @@ const accessChat = asyncHandler(async (req, res) => {
     if (!userId) {
         throw new AppError('UserId param not send with request', 400);
     }
+    // Check if the users are friends
+    const areFriends = await User.exists({
+        _id: req.user.id,
+        friends: userId,
+    });
+
+    if (!areFriends) {
+        console.log("Users are not friends");
+        return res.sendStatus(400);
+    }
 
     let isChat = await Chat.find({
         isGroupChat: false,
