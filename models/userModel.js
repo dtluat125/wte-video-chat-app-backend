@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const Notification = require('./notificationModel');
 
 const Schema = mongoose.Schema;
 
@@ -118,6 +119,14 @@ const sendFriendRequest = async (requesterId, recipientId) => {
             requester: requesterId,
             recipient: recipientId,
             status: 1, // 1 represents requested status
+        });
+        // Create friend notification for the recipient
+        const notification = await Notification.create({
+            recipient: recipientId,
+            sender: requesterId,
+            type: 'friend_request',
+            message: 'You have a new friend request',
+            time: Date.now(),
         });
         // Handle sending notifications or any other necessary actions
         return friendRequest;
