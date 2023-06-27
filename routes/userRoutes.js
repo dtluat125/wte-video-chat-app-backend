@@ -33,4 +33,15 @@ router
     .patch(userController.updateUser)
     .delete(userController.deleteUser);
 
+
+// Friend request routes
+router.post('/friend-request', userController.sendFriendRequest);
+router.patch('/friend-request/:id/accept', userController.acceptFriendRequest);
+router.patch('/friend-request/:id/reject', userController.rejectFriendRequest);
+
+// Notification routes
+router.get('/notifications', userController.getNotifications);
+router.patch('/notifications/:id/mark-as-read', userController.markNotificationAsRead);
+
+
 module.exports = router;

@@ -4,6 +4,10 @@ const AppError = require('../utils/appError');
 const factory = require('./handlerFactory');
 const multer = require('multer');
 const sharp = require('sharp');
+const FriendRequest = require('../models/userModel');
+const Notification = require('../models/notificationModel')
+
+const asyncHandler = require('express-async-handler');
 
 const multerStorage = multer.memoryStorage();
 
@@ -86,3 +90,124 @@ exports.deleteMe = catchAsync(async (req, res, next) => {
     data: null,
   });
 });
+
+// Send Friend Request
+exports.sendFriendRequest = asyncHandler(async (req, res) => {
+  const { recipientId } = req.body;
+
+  if (!recipientId) {
+    return res.status(400).json({ message: 'Recipient ID is required' });
+  }
+
+  const recipient = await User.findById(recipientId);
+
+  if (!recipient) {
+    return res.status(404).json({ message: 'Recipient not found' });
+  }
+
+  const friendRequest = await FriendRequest.create({
+    requester: req.user._id,
+    recipient: recipientId,
+    status: 1, // 1 = requested
+  });
+
+  // Create notification for the recipient
+  const notification = await Notification.create({
+    user: recipientId,
+    message: `${req.user.name} sent you a friend request`,
+    type: 'friend_request',
+  });
+
+  res.status(201).json({ friendRequest, notification });
+});
+
+// Accept Friend Request
+exports.acceptFriendRequest = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const friendRequest = await FriendRequest.findByIdAndUpdate(
+    id,
+    { status: 2 }, // 2 = accepted
+    { new: true }
+  );
+
+  if (!friendRequest) {
+    return res.status(404).json({ message: 'Friend request not found' });
+  }
+
+  const requester = await User.findById(friendRequest.requester);
+  const recipient = await User.findById(friendRequest.recipient);
+
+  // Add users to each other's friends list
+  requester.friends.push(recipient._id);
+  recipient.friends.push(requester._id);
+
+  await requester.save();
+  await recipient.save();
+
+  // Create notification for the requester
+  const notification = await Notification.create({
+    user: friendRequest.requester,
+    message: `${recipient.name} accepted your friend request`,
+    type: 'friend_accept',
+  });
+
+  res.status(200).json({ friendRequest, notification });
+});
+
+// Reject Friend Request
+exports.rejectFriendRequest = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const friendRequest = await FriendRequest.findByIdAndUpdate(
+    id,
+    { status: 3 }, // 3 = rejected
+    { new: true }
+  );
+
+  if (!friendRequest) {
+    return res.status(404).json({ message: 'Friend request not found' });
+  }
+
+  const recipient = await User.findById(friendRequest.recipient);
+
+  // Create notification for the requester
+  const notification = await Notification.create({
+    user: friendRequest.requester,
+    message: `${recipient.name} rejected your friend request`,
+    type: 'friend_reject',
+  });
+
+  res.status(200).json({ friendRequest, notification });
+});
+
+// Get Notifications
+exports.getNotifications = asyncHandler(async (req, res) => {
+  const notifications = await Notification.find({ user: req.user._id })
+    .sort({ createdAt: -1 })
+    .populate('user', 'name');
+
+  res.status(200).json(notifications);
+});
+
+// Mark Notification as Read
+exports.markNotificationAsRead = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const notification = await Notification.findByIdAndUpdate(
+    id,
+    { isRead: true },
+    { new: true }
+  );
+
+  if (!notification) {
+    return res.status(404).json({ message: 'Notification not found' });
+  }
+
+  res.status(200).json(notification);
+});
+
+
+
+
+
