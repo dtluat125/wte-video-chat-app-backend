@@ -43,5 +43,5 @@ router.patch('/friend-request/:id/reject', userController.rejectFriendRequest);
 router.get('/notifications', userController.getNotifications);
 router.patch('/notifications/:id/mark-as-read', userController.markNotificationAsRead);
 
-
+    
 module.exports = router;
